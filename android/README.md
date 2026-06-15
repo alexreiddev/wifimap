@@ -1,15 +1,17 @@
 # wifimap radar — Android app
 
-A native **Kotlin + Jetpack Compose** app that acts as a **display / controller**
-for the ESP32 `wifimap` radar. It does **not** sense anything itself — it polls the
-ESP32's `/api/status` JSON feed once per second and draws the same radar (range
-rings, device blips, pulsing human-occupancy band) natively, and can trigger the
-board's recalibrate / AP-rescan actions.
+A native **Kotlin + Jetpack Compose** app with two modes:
 
-> Why display-only? Stock Android/iOS phones do **not** expose WiFi Channel State
-> Information (CSI), so the human-sensing has to stay on the ESP32. A phone *can*
-> scan WiFi APs and BLE devices on its own, but that's a different app — see the
-> repo root README "Roadmap". This app keeps the ESP32 as the sensor.
+- **ESP32 sensor** (default) — polls the board's `/api/status` and draws the full
+  radar (devices **and** the CSI human-occupancy layer); can recalibrate / rescan.
+  Auto-discovers boards on the network via mDNS — usually no typing needed.
+- **This phone** — uses the phone's own **BLE + WiFi** radios to map nearby devices
+  with no ESP32 at all. The human/CSI layer is unavailable in this mode because
+  stock phones don't expose WiFi Channel State Information.
+
+User-friendly touches: mDNS auto-discovery, remembered host (DataStore),
+connecting/connected/error states with retry, a legend dialog, a settings dialog,
+runtime permission prompts for phone scanning, and an app icon.
 
 ## Architecture
 
@@ -47,12 +49,13 @@ so no separate Gradle install is needed — the first run downloads Gradle 8.9.
 
 ## Using it
 
-1. Flash and power the ESP32 (`../README.md`) and note the IP it prints on serial.
-2. Put the phone on the **same WiFi network** as the ESP32.
-3. Launch the app, type the ESP32's **IP** (e.g. `192.168.1.42`) in the host field.
-   - If you add mDNS to the firmware (optional), `wifimap.local` works too.
-4. The radar mirrors the board's web dashboard; **recalibrate** / **rescan APs**
-   buttons POST to the board.
+**ESP32 mode:** put the phone on the same WiFi as the board. The app
+**auto-discovers** it via mDNS — open **settings** and tap the discovered board, or
+just leave the default `wifimap.local`. The radar then mirrors the board, and
+**recalibrate** / **rescan APs** POST to it.
+
+**Phone mode:** tap **this phone**; grant the Bluetooth/WiFi/location prompts. The
+radar fills from the phone's own BLE + WiFi scans (no human layer).
 
 The app talks plain **HTTP** to the board, so `AndroidManifest.xml` sets
 `android:usesCleartextTraffic="true"`. That's fine for a LAN device; tighten it
@@ -60,9 +63,9 @@ with a network-security-config scoped to your subnet if you prefer.
 
 ## Status / limitations
 
-- This is a **runnable skeleton**: project structure, networking, models, and the
-  native radar are implemented.
-- **Not built in CI here** — the authoring environment has no Android SDK and no
-  access to the Maven/Google plugin repos, so `./gradlew assembleDebug` was *not*
-  run. Build it locally in Android Studio.
-- Display only: no WiFi/BLE scanning from the phone, no CSI on the phone.
+- Fully featured app (discovery, persistence, two scan sources, settings, legend,
+  icon). **Not built in CI here** — the authoring environment has no Android SDK
+  and no Maven/Google repo access, so `./gradlew assembleDebug` was *not* run.
+  Build it in Android Studio.
+- Phone mode is **device-mapping only** (BLE + WiFi); the human/CSI layer needs the
+  ESP32 (stock phones don't expose WiFi CSI).

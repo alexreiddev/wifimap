@@ -1,6 +1,5 @@
 package com.wifimap.radar.ui.theme
 
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
@@ -19,6 +18,5 @@ private val RadarColors = darkColorScheme(
 @Composable
 fun WifimapRadarTheme(content: @Composable () -> Unit) {
     // Always use the dark radar palette regardless of system setting.
-    @Suppress("UNUSED_EXPRESSION") isSystemInDarkTheme()
     MaterialTheme(colorScheme = RadarColors, content = content)
 }

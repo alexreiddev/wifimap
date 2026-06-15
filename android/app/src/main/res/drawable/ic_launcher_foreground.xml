@@ -1,0 +1,22 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- range rings -->
+    <path android:strokeColor="#39FF14" android:strokeWidth="2" android:fillColor="#00000000"
+        android:pathData="M18,54 a36,36 0 1,0 72,0 a36,36 0 1,0 -72,0" />
+    <path android:strokeColor="#2239FF14" android:strokeWidth="2" android:fillColor="#00000000"
+        android:pathData="M30,54 a24,24 0 1,0 48,0 a24,24 0 1,0 -48,0" />
+    <path android:strokeColor="#2239FF14" android:strokeWidth="2" android:fillColor="#00000000"
+        android:pathData="M42,54 a12,12 0 1,0 24,0 a12,12 0 1,0 -24,0" />
+    <!-- crosshairs -->
+    <path android:strokeColor="#3339FF14" android:strokeWidth="1.5"
+        android:pathData="M18,54 L90,54 M54,18 L54,90" />
+    <!-- sweep -->
+    <path android:strokeColor="#39FF14" android:strokeWidth="2"
+        android:pathData="M54,54 L84,34" />
+    <!-- blip -->
+    <path android:fillColor="#39FF14"
+        android:pathData="M67,40 a5,5 0 1,0 10,0 a5,5 0 1,0 -10,0" />
+</vector>
