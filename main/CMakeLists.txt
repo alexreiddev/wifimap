@@ -1,0 +1,23 @@
+idf_component_register(
+    SRCS
+        "main.c"
+        "wifi_csi.c"
+        "csi_process.c"
+        "ble_scan.c"
+        "wifi_apscan.c"
+        "web_server.c"
+    INCLUDE_DIRS
+        "."
+    EMBED_FILES
+        "../web/index.html"
+    REQUIRES
+        nvs_flash
+        esp_wifi
+        esp_netif
+        esp_event
+        esp_timer
+        esp_http_server
+        lwip
+        bt
+        json
+)

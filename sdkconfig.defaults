@@ -1,0 +1,29 @@
+# Default sdkconfig for wifimap (classic ESP32-WROOM).
+# These are applied on a fresh `idf.py set-target esp32`. Tweak via `idf.py menuconfig`.
+
+CONFIG_IDF_TARGET="esp32"
+
+# --- WiFi: enable Channel State Information (CSI) ---
+CONFIG_ESP_WIFI_CSI_ENABLED=y
+# Keep enough RX buffers so CSI packets are not dropped under load.
+CONFIG_ESP_WIFI_DYNAMIC_RX_BUFFER_NUM=32
+CONFIG_ESP_WIFI_STATIC_RX_BUFFER_NUM=16
+
+# --- Bluetooth: NimBLE host (BLE only, classic BT off to save RAM) ---
+CONFIG_BT_ENABLED=y
+CONFIG_BT_NIMBLE_ENABLED=y
+CONFIG_BT_CONTROLLER_ENABLED=y
+
+# --- HTTP server ---
+CONFIG_HTTPD_MAX_REQ_HDR_LEN=1024
+
+# --- Use the custom partition table (larger app partition) ---
+CONFIG_PARTITION_TABLE_CUSTOM=y
+CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions.csv"
+
+# --- Misc: bump main task stack a little; FreeRTOS tick ---
+CONFIG_ESP_MAIN_TASK_STACK_SIZE=6144
+CONFIG_FREERTOS_HZ=1000
+
+# --- LWIP: enable ICMP ping used to keep CSI traffic flowing ---
+CONFIG_LWIP_ICMP=y
