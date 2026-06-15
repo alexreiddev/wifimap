@@ -105,6 +105,14 @@ CSI is environment-sensitive. If you get false positives/negatives, adjust in
 - `web_server.c` serves the embedded `web/index.html` radar and a `/api/status`
   JSON feed polled once per second.
 
+## Companion Android app
+
+A native Kotlin/Compose app in [`android/`](android/) acts as a **display /
+controller** for the board: it polls `/api/status` and renders the same radar on
+your phone, with recalibrate / AP-rescan buttons. It does *not* sense on the phone
+— stock phones can't access WiFi CSI — so the ESP32 stays the sensor. See
+[`android/README.md`](android/README.md).
+
 ## Roadmap (not implemented)
 
 - Multiple ESP32 nodes → trilateration for **real X/Y positions**.
