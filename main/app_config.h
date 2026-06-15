@@ -6,11 +6,24 @@
 #pragma once
 
 // ---------------------------------------------------------------------------
-// WiFi station credentials (REQUIRED — change these).
+// WiFi credentials.
+// You normally DON'T need to edit these: on first boot the board hosts a setup
+// WiFi (SETUP_AP_SSID) where you enter your network from a phone, and the values
+// are saved to flash (NVS). These compile-time values are only used as a fallback
+// if you prefer to bake credentials in. Leave them as the placeholder to force
+// the setup portal.
 // ---------------------------------------------------------------------------
 #define WIFI_SSID        "your-ssid"
 #define WIFI_PASS        "your-password"
 #define WIFI_MAX_RETRY   10
+
+// Always-on setup access point (open network). Connect a phone to this and open
+// http://192.168.4.1/ to configure WiFi (and optional cloud export).
+#define SETUP_AP_SSID    "wifimap-setup"
+
+// mDNS hostname → the dashboard is reachable at http://<MDNS_HOSTNAME>.local/
+#define MDNS_HOSTNAME    "wifimap"
+#define MDNS_INSTANCE    "wifimap radar"
 
 // ---------------------------------------------------------------------------
 // CSI / ping
@@ -53,3 +66,11 @@
 // Web server
 // ---------------------------------------------------------------------------
 #define WEB_SERVER_PORT         80
+
+// ---------------------------------------------------------------------------
+// Cloud export (optional; configured at runtime from the setup page / NVS)
+// ---------------------------------------------------------------------------
+// How often to publish the status JSON to MQTT / the webhook (milliseconds).
+#define CLOUD_PUBLISH_MS        1000
+// MQTT topic the status JSON is published to.
+#define MQTT_TOPIC              "wifimap/status"

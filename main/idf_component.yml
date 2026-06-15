@@ -1,0 +1,6 @@
+# Managed component dependencies (fetched by the IDF component manager on build).
+dependencies:
+  idf: ">=5.0"
+  # mDNS moved to the component registry in ESP-IDF 5.2+. Declaring it here keeps
+  # the build working across 5.x; on older IDF the bundled copy is used instead.
+  espressif/mdns: "^1.2.0"

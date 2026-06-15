@@ -46,7 +46,13 @@
   <span class="pill" id="calib">calibrating…</span>
   <button onclick="recalibrate()">recalibrate</button>
   <button onclick="rescan()">rescan APs</button>
+  <button onclick="location.href='/setup'">⚙ setup</button>
 </header>
+
+<div id="banner" style="display:none;background:#3a0d0d;color:#ffd0d0;
+  border-bottom:1px solid #a44;padding:8px 14px;font-size:13px">
+  ⚠ Can't reach the sensor — retrying… check that it's powered and on this network.
+</div>
 
 <div class="wrap">
   <div class="radar-box">
@@ -79,8 +85,9 @@
       <thead><tr><th>ssid</th><th>ch</th><th>rssi</th><th>dist</th></tr></thead>
       <tbody></tbody></table></div>
 
-    <p class="muted" style="font-size:11px">uptime <span id="uptime">0</span>s ·
-      polling /api/status every 1s</p>
+    <p class="muted" style="font-size:11px">
+      <span id="netinfo">—</span><br>
+      uptime <span id="uptime">0</span>s · polling /api/status every 1s</p>
   </div>
 </div>
 
@@ -91,6 +98,7 @@ const spark = document.getElementById('spark');
 let sweep = 0;
 let last = { devices_ble: [], aps: [], occupancy: 'none', zone_score: 0 };
 let history = [];
+const CALIB_SECONDS = 10;   // matches CSI_CALIB_SECONDS in app_config.h
 
 // Map a distance in metres to a canvas radius. Log scale so close + far both fit.
 const R_MAX = 250;            // px radius of outer ring
@@ -198,13 +206,26 @@ async function poll() {
     const s = await r.json();
     last = s;
 
-    document.getElementById('conn').textContent = 'link OK';
+    document.getElementById('banner').style.display = 'none';
+    document.getElementById('conn').textContent = s.connected ? 'link OK' : 'sensor: no WiFi';
     const pres = document.getElementById('presence');
     pres.textContent = 'presence: ' + (s.presence ? 'YES' : 'no');
     pres.className = 'pill' + (s.presence ? ' on' : '');
     document.getElementById('occ').textContent = 'zone: ' + (s.occupancy||'none');
     const cal = document.getElementById('calib');
-    cal.textContent = s.csi_calibrated ? 'calibrated' : 'calibrating…';
+    if (s.csi_calibrated) {
+      cal.textContent = 'calibrated';
+      cal.className = 'pill';
+    } else {
+      const left = Math.max(0, CALIB_SECONDS - (s.uptime||0));
+      cal.textContent = 'hold still — calibrating ' + left + 's';
+      cal.className = 'pill on';
+    }
+
+    const net = s.connected
+      ? ('on "' + (s.ssid||'?') + '" · http://' + (s.mdns||'wifimap.local') + '/ · ' + (s.ip||''))
+      : ('not connected — join "' + (s.setup_ap||'wifimap-setup') + '" WiFi and open /setup');
+    document.getElementById('netinfo').textContent = net;
 
     document.getElementById('activity').textContent = (s.activity||0).toFixed(2);
     document.getElementById('csiconf').textContent = Math.round((s.csi_confidence||0)*100)+'%';
@@ -230,6 +251,7 @@ async function poll() {
     ])).join('');
   } catch(e) {
     document.getElementById('conn').textContent = 'link lost';
+    document.getElementById('banner').style.display = 'block';
   }
 }
 

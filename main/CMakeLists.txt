@@ -6,10 +6,14 @@ idf_component_register(
         "ble_scan.c"
         "wifi_apscan.c"
         "web_server.c"
+        "provisioning.c"
+        "status_json.c"
+        "cloud.c"
     INCLUDE_DIRS
         "."
     EMBED_FILES
         "../web/index.html"
+        "../web/setup.html"
     REQUIRES
         nvs_flash
         esp_wifi
@@ -17,7 +21,10 @@ idf_component_register(
         esp_event
         esp_timer
         esp_http_server
+        esp_http_client
         lwip
+        mdns
+        mqtt
         bt
         json
 )

@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>wifimap setup</title>
+<style>
+  :root { --bg:#04110a; --fg:#bfffd8; --accent:#39ff14; --line:#0c5; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg);
+         font-family: ui-monospace, Menlo, Consolas, monospace; }
+  .card { max-width:460px; margin:0 auto; padding:18px; }
+  h1 { color:var(--accent); font-size:18px; letter-spacing:2px; }
+  p.sub { opacity:.75; font-size:13px; line-height:1.5; }
+  label { display:block; margin:14px 0 4px; font-size:13px; }
+  input[type=text], input[type=password], input[type=url] {
+    width:100%; padding:10px; background:#06190f; color:var(--fg);
+    border:1px solid var(--line); border-radius:8px; font-family:inherit; font-size:14px; }
+  .row { display:flex; align-items:center; gap:8px; margin-top:12px; font-size:13px; }
+  fieldset { border:1px dashed #084; border-radius:8px; margin-top:18px; padding:8px 12px 14px; }
+  legend { color:var(--accent); font-size:12px; padding:0 6px; }
+  button { width:100%; margin-top:18px; padding:12px; background:#063; color:var(--fg);
+           border:1px solid var(--accent); border-radius:8px; font-family:inherit;
+           font-size:15px; cursor:pointer; }
+  button:hover { background:#085; }
+  button.danger { border-color:#a55; color:#fbb; background:#310; margin-top:10px; }
+  .msg { margin-top:14px; font-size:13px; min-height:18px; }
+  .ok { color:var(--accent); } .err { color:#ff7d7d; }
+  a { color:var(--accent); }
+</style>
+</head>
+<body>
+<div class="card">
+  <h1>◎ WIFIMAP SETUP</h1>
+  <p class="sub">Enter the WiFi network the sensor should join. After saving, the
+    board connects and the radar is available at <b>http://wifimap.local/</b> (or
+    its IP). You can return here any time via the <b>wifimap-setup</b> WiFi.</p>
+
+  <label for="ssid">WiFi network (SSID)</label>
+  <input id="ssid" type="text" autocapitalize="off" autocomplete="off" placeholder="MyHomeWiFi">
+
+  <label for="pass">WiFi password</label>
+  <input id="pass" type="password" placeholder="(leave blank for open networks)">
+
+  <fieldset>
+    <legend>Cloud export (optional)</legend>
+    <p class="sub" style="margin-top:4px">Push the live status JSON out for Home
+      Assistant, dashboards, etc. Applied after the next reboot.</p>
+    <div class="row">
+      <input id="mqtt_en" type="checkbox">
+      <label for="mqtt_en" style="margin:0">Enable MQTT</label>
+    </div>
+    <label for="mqtt_uri">MQTT broker URI</label>
+    <input id="mqtt_uri" type="text" placeholder="mqtt://192.168.1.10:1883">
+    <label for="hook_url">HTTP webhook URL</label>
+    <input id="hook_url" type="url" placeholder="https://example.com/wifimap">
+  </fieldset>
+
+  <button onclick="save()">Save &amp; connect</button>
+  <button class="danger" onclick="forget()">Forget WiFi &amp; reboot to setup</button>
+  <div class="msg" id="msg"></div>
+  <p class="sub" style="margin-top:18px"><a href="/">← back to radar</a></p>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+function setMsg(t, ok) { const m = $('msg'); m.textContent = t; m.className = 'msg ' + (ok ? 'ok' : 'err'); }
+
+async function save() {
+  const ssid = $('ssid').value.trim();
+  if (!ssid) { setMsg('Please enter a WiFi network name.', false); return; }
+  const body = {
+    ssid,
+    pass: $('pass').value,
+    mqtt_en: $('mqtt_en').checked,
+    mqtt_uri: $('mqtt_uri').value.trim(),
+    hook_url: $('hook_url').value.trim(),
+  };
+  setMsg('Saving…', true);
+  try {
+    const r = await fetch('/api/save', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(body),
+    });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    setMsg('Saved! The board is connecting to "' + ssid + '". ' +
+           'Open http://wifimap.local/ once it joins your network.', true);
+  } catch (e) {
+    // The board may drop the AP while reconnecting — that can look like an error.
+    setMsg('Saved (the setup WiFi may disconnect as the board joins your network).', true);
+  }
+}
+
+async function forget() {
+  if (!confirm('Erase saved WiFi and reboot into setup mode?')) return;
+  setMsg('Erasing & rebooting…', true);
+  try { await fetch('/api/forget', {method: 'POST'}); } catch (e) {}
+  setMsg('Rebooting. Reconnect to the "wifimap-setup" WiFi in a few seconds.', true);
+}
+</script>
+</body>
+</html>

@@ -1,22 +1,33 @@
 // web_server.c
 //
+// Serves both the radar dashboard and a zero-config setup page, plus a small JSON
+// API. Because esp_http_server binds all interfaces, the same server answers on
+// the always-on setup AP (192.168.4.1) and on the LAN once the station connects.
+//
 // Routes:
-//   GET /              -> embedded radar dashboard (web/index.html)
-//   GET /api/status    -> JSON snapshot of CSI presence + BLE devices + APs
-//   POST /api/recalibrate -> restart CSI baseline calibration
-//   POST /api/apscan   -> trigger an immediate WiFi AP scan
+//   GET  /                 -> radar dashboard (web/index.html)
+//   GET  /setup            -> WiFi / cloud setup page (web/setup.html)
+//   GET  /api/status       -> JSON snapshot
+//   POST /api/save         -> {ssid,pass,mqtt_uri,mqtt_en,hook_url} -> NVS + apply
+//   POST /api/forget       -> clear WiFi creds + reboot into setup
+//   POST /api/recalibrate  -> restart CSI baseline calibration
+//   POST /api/apscan       -> trigger an immediate WiFi AP scan
 
 #include "web_server.h"
 #include "app_config.h"
 #include "csi_process.h"
-#include "ble_scan.h"
 #include "wifi_apscan.h"
+#include "wifi_csi.h"
+#include "provisioning.h"
+#include "status_json.h"
 
-#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 #include "esp_log.h"
-#include "esp_timer.h"
+#include "esp_system.h"
 #include "esp_http_server.h"
 #include "cJSON.h"
 
@@ -24,75 +35,112 @@ static const char *TAG = "web";
 
 extern const char index_html_start[] asm("_binary_index_html_start");
 extern const char index_html_end[]   asm("_binary_index_html_end");
+extern const char setup_html_start[] asm("_binary_setup_html_start");
+extern const char setup_html_end[]   asm("_binary_setup_html_end");
 
-static void mac_to_str(const uint8_t *m, char *out)
+static esp_err_t send_asset(httpd_req_t *req, const char *start, const char *end)
 {
-    sprintf(out, "%02X:%02X:%02X:%02X:%02X:%02X", m[0], m[1], m[2], m[3], m[4], m[5]);
+    httpd_resp_set_type(req, "text/html");
+    return httpd_resp_send(req, start, end - start);
 }
 
 static esp_err_t root_get(httpd_req_t *req)
 {
-    httpd_resp_set_type(req, "text/html");
-    const size_t len = index_html_end - index_html_start;
-    return httpd_resp_send(req, index_html_start, len);
+    return send_asset(req, index_html_start, index_html_end);
+}
+
+static esp_err_t setup_get(httpd_req_t *req)
+{
+    return send_asset(req, setup_html_start, setup_html_end);
 }
 
 static esp_err_t status_get(httpd_req_t *req)
 {
-    csi_status_t csi;
-    csi_process_get(&csi);
-
-    static ble_device_t bdev[BLE_MAX_DEVICES];
-    int bn = ble_scan_get(bdev, BLE_MAX_DEVICES);
-
-    static ap_record_t aps[AP_MAX_RECORDS];
-    int an = wifi_apscan_get(aps, AP_MAX_RECORDS);
-
-    cJSON *root = cJSON_CreateObject();
-    cJSON_AddBoolToObject(root, "presence", csi.presence);
-    cJSON_AddNumberToObject(root, "activity", csi.activity);
-    cJSON_AddStringToObject(root, "occupancy", occupancy_str(csi.occupancy));
-    cJSON_AddNumberToObject(root, "zone_score", csi.zone_score);
-    cJSON_AddNumberToObject(root, "csi_confidence", csi.confidence);
-    cJSON_AddBoolToObject(root, "csi_calibrated", csi.calibrated);
-    cJSON_AddNumberToObject(root, "csi_packets", csi.packets);
-    cJSON_AddNumberToObject(root, "uptime", esp_timer_get_time() / 1000000);
-
-    cJSON *devs = cJSON_AddArrayToObject(root, "devices_ble");
-    for (int i = 0; i < bn; i++) {
-        char mac[18];
-        mac_to_str(bdev[i].mac, mac);
-        cJSON *d = cJSON_CreateObject();
-        cJSON_AddStringToObject(d, "mac", mac);
-        cJSON_AddStringToObject(d, "name", bdev[i].name);
-        cJSON_AddNumberToObject(d, "rssi", bdev[i].rssi);
-        cJSON_AddNumberToObject(d, "dist_m", bdev[i].dist_m);
-        cJSON_AddNumberToObject(d, "dist_err_m", bdev[i].dist_err_m);
-        cJSON_AddNumberToObject(d, "bearing_deg", bdev[i].bearing_deg);
-        cJSON_AddNumberToObject(d, "confidence", bdev[i].confidence);
-        cJSON_AddItemToArray(devs, d);
-    }
-
-    cJSON *aparr = cJSON_AddArrayToObject(root, "aps");
-    for (int i = 0; i < an; i++) {
-        char bssid[18];
-        mac_to_str(aps[i].bssid, bssid);
-        cJSON *a = cJSON_CreateObject();
-        cJSON_AddStringToObject(a, "ssid", aps[i].ssid);
-        cJSON_AddStringToObject(a, "bssid", bssid);
-        cJSON_AddNumberToObject(a, "rssi", aps[i].rssi);
-        cJSON_AddNumberToObject(a, "ch", aps[i].channel);
-        cJSON_AddNumberToObject(a, "dist_m", aps[i].dist_m);
-        cJSON_AddNumberToObject(a, "bearing_deg", aps[i].bearing_deg);
-        cJSON_AddNumberToObject(a, "confidence", aps[i].confidence);
-        cJSON_AddItemToArray(aparr, a);
-    }
-
-    char *out = cJSON_PrintUnformatted(root);
+    char *json = status_json_build();
     httpd_resp_set_type(req, "application/json");
-    httpd_resp_sendstr(req, out ? out : "{}");
-    cJSON_free(out);
-    cJSON_Delete(root);
+    esp_err_t err = httpd_resp_sendstr(req, json ? json : "{}");
+    free(json);
+    return err;
+}
+
+// Read the (small) request body into a heap buffer the caller must free.
+static char *read_body(httpd_req_t *req)
+{
+    int total = req->content_len;
+    if (total <= 0 || total > 2048) {
+        return NULL;
+    }
+    char *buf = malloc(total + 1);
+    if (!buf) return NULL;
+    int received = 0;
+    while (received < total) {
+        int r = httpd_req_recv(req, buf + received, total - received);
+        if (r <= 0) { free(buf); return NULL; }
+        received += r;
+    }
+    buf[total] = '\0';
+    return buf;
+}
+
+static const char *json_str(cJSON *o, const char *key)
+{
+    cJSON *i = cJSON_GetObjectItem(o, key);
+    return (i && cJSON_IsString(i)) ? i->valuestring : "";
+}
+
+static esp_err_t save_post(httpd_req_t *req)
+{
+    char *body = read_body(req);
+    if (!body) {
+        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "bad body");
+        return ESP_FAIL;
+    }
+    cJSON *o = cJSON_Parse(body);
+    free(body);
+    if (!o) {
+        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "bad json");
+        return ESP_FAIL;
+    }
+
+    const char *ssid = json_str(o, "ssid");
+    const char *pass = json_str(o, "pass");
+    const char *mqtt = json_str(o, "mqtt_uri");
+    const char *hook = json_str(o, "hook_url");
+    cJSON *en = cJSON_GetObjectItem(o, "mqtt_en");
+    bool mqtt_en = en && cJSON_IsTrue(en);
+
+    provisioning_save_cloud(mqtt, mqtt_en, hook);
+
+    httpd_resp_set_type(req, "application/json");
+    httpd_resp_sendstr(req,
+        "{\"ok\":true,\"note\":\"WiFi applied now; cloud settings take effect after reboot\"}");
+
+    if (ssid[0] != '\0') {
+        // Apply after responding so the client gets a reply before we reconnect.
+        static char s_ssid[33], s_pass[65];
+        strncpy(s_ssid, ssid, sizeof(s_ssid) - 1); s_ssid[sizeof(s_ssid)-1] = '\0';
+        strncpy(s_pass, pass, sizeof(s_pass) - 1); s_pass[sizeof(s_pass)-1] = '\0';
+        cJSON_Delete(o);
+        vTaskDelay(pdMS_TO_TICKS(300));
+        wifi_csi_apply_sta(s_ssid, s_pass);
+        return ESP_OK;
+    }
+    cJSON_Delete(o);
+    return ESP_OK;
+}
+
+static void reboot_task(void *arg)
+{
+    vTaskDelay(pdMS_TO_TICKS(800));
+    esp_restart();
+}
+
+static esp_err_t forget_post(httpd_req_t *req)
+{
+    provisioning_clear_wifi();
+    httpd_resp_set_type(req, "application/json");
+    httpd_resp_sendstr(req, "{\"ok\":true,\"note\":\"rebooting into setup\"}");
+    xTaskCreate(reboot_task, "reboot", 2048, NULL, 5, NULL);
     return ESP_OK;
 }
 
@@ -114,7 +162,7 @@ esp_err_t web_server_start(void)
 {
     httpd_config_t config = HTTPD_DEFAULT_CONFIG();
     config.server_port = WEB_SERVER_PORT;
-    config.max_uri_handlers = 8;
+    config.max_uri_handlers = 12;
     config.lru_purge_enable = true;
 
     httpd_handle_t server = NULL;
@@ -126,7 +174,10 @@ esp_err_t web_server_start(void)
 
     httpd_uri_t routes[] = {
         { .uri = "/",                .method = HTTP_GET,  .handler = root_get },
+        { .uri = "/setup",           .method = HTTP_GET,  .handler = setup_get },
         { .uri = "/api/status",      .method = HTTP_GET,  .handler = status_get },
+        { .uri = "/api/save",        .method = HTTP_POST, .handler = save_post },
+        { .uri = "/api/forget",      .method = HTTP_POST, .handler = forget_post },
         { .uri = "/api/recalibrate", .method = HTTP_POST, .handler = recalibrate_post },
         { .uri = "/api/apscan",      .method = HTTP_POST, .handler = apscan_post },
     };
