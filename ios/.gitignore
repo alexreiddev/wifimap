@@ -1,0 +1,7 @@
+# XcodeGen output + Xcode/user files
+*.xcodeproj
+*.xcworkspace
+xcuserdata/
+DerivedData/
+.DS_Store
+build/

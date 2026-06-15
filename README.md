@@ -45,17 +45,23 @@ several ESP32 nodes (trilateration) — see *Roadmap*.
 - A 2.4 GHz WiFi network for the board to join (used both to serve the dashboard
   and to generate the ping traffic that keeps CSI flowing).
 
-## Configure
+## Configure — no code editing needed
 
-Edit `main/app_config.h`:
+On first boot (or whenever it has no saved network) the board hosts an open WiFi
+called **`wifimap-setup`**. From a phone:
 
-```c
-#define WIFI_SSID  "your-ssid"
-#define WIFI_PASS  "your-password"
-```
+1. Join the **`wifimap-setup`** WiFi.
+2. Open **http://192.168.4.1/setup**.
+3. Enter your home WiFi (and, optionally, MQTT broker / webhook URL for cloud
+   export) and tap **Save & connect**.
 
-Other tunables (calibration time, CSI thresholds, RSSI distance model, scan
-cadence) live in the same file with comments.
+Credentials are stored in flash (NVS); the board reconnects automatically on every
+later boot. To re-configure, rejoin `wifimap-setup` and open `/setup` again, or use
+the dashboard's **⚙ setup** → **Forget WiFi** button.
+
+> Prefer baking credentials in? You still can: set `WIFI_SSID` / `WIFI_PASS` in
+> `main/app_config.h`. Other tunables (calibration time, CSI thresholds, RSSI
+> distance model, scan cadence) live there too.
 
 ## Build, flash, run
 
@@ -65,15 +71,17 @@ idf.py build
 idf.py -p /dev/ttyUSB0 flash monitor      # use your serial port
 ```
 
-On boot the serial log prints the dashboard URL, e.g.:
+On boot the serial log prints how to reach it:
 
 ```
-I (…) wifimap: ready — open the radar at http://192.168.1.42/
+I (…) wifimap:   dashboard: http://wifimap.local/  (or the station IP)
+I (…) wifimap:   setup:     join WiFi 'wifimap-setup' then open http://192.168.4.1/setup
 I (…) wifimap: calibrating CSI baseline for 10 s; keep the area still
 ```
 
-**Keep the area still for the first ~10 seconds** so the empty-room CSI baseline
-is learned. Then open that URL on a phone/laptop on the same network.
+Once connected, open **http://wifimap.local/** from any device on the same network
+(mDNS). **Keep the area still for the first ~10 seconds** so the empty-room CSI
+baseline is learned (the dashboard shows a calibration countdown).
 
 ## Using the radar
 
@@ -102,22 +110,31 @@ CSI is environment-sensitive. If you get false positives/negatives, adjust in
 - `ble_scan.c` runs a NimBLE passive scan, maintaining a device table with RSSI
   distance, confidence (from signal strength + stability) and an estimated bearing.
 - `wifi_apscan.c` periodically scans nearby APs.
-- `web_server.c` serves the embedded `web/index.html` radar and a `/api/status`
-  JSON feed polled once per second.
+- `web_server.c` serves the embedded radar (`web/index.html`) **and** the setup
+  page (`web/setup.html`), plus the `/api/*` endpoints.
+- `provisioning.c` stores WiFi + cloud settings in NVS; `cloud.c` optionally
+  exports the status JSON to MQTT and/or an HTTP webhook.
 
-## Companion Android app
+## Cloud export (optional)
 
-A native Kotlin/Compose app in [`android/`](android/) acts as a **display /
-controller** for the board: it polls `/api/status` and renders the same radar on
-your phone, with recalibrate / AP-rescan buttons. It does *not* sense on the phone
-— stock phones can't access WiFi CSI — so the ESP32 stays the sensor. See
-[`android/README.md`](android/README.md).
+On the setup page you can enable **MQTT** (status JSON published to `wifimap/status`)
+and/or an **HTTP webhook** (periodic `POST` of the same JSON) — handy for Home
+Assistant, Node-RED, or custom dashboards. Configured at runtime; no recompile.
 
-## Roadmap (not implemented)
+## Companion apps
+
+- **Android** ([`android/`](android/)) — native Kotlin/Compose. Auto-discovers the
+  board via mDNS, renders the full radar, and can also run a **standalone mode**
+  that maps devices using the phone's own BLE + WiFi radios (no ESP32; no human
+  layer). See [`android/README.md`](android/README.md).
+- **iOS** ([`ios/`](ios/)) — SwiftUI client (poll the board + optional CoreBluetooth
+  BLE mapping). iOS can't scan WiFi, so its standalone mode is BLE-only. See
+  [`ios/README.md`](ios/README.md).
+
+## Roadmap (needs extra hardware)
 
 - Multiple ESP32 nodes → trilateration for **real X/Y positions**.
 - Antenna array / phase processing → **real bearing (AoA)**.
-- MQTT / cloud export of the device + occupancy stream.
 
 ## Legal / ethical note
 
