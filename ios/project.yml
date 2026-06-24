@@ -1,0 +1,30 @@
+# XcodeGen spec. Generate the Xcode project with:  xcodegen generate
+# (brew install xcodegen). Then open WifimapRadar.xcodeproj in Xcode.
+name: WifimapRadar
+options:
+  bundleIdPrefix: com.wifimap
+  deploymentTarget:
+    iOS: "16.0"
+targets:
+  WifimapRadar:
+    type: application
+    platform: iOS
+    sources:
+      - WifimapRadar
+    info:
+      path: WifimapRadar/Info.plist
+      properties:
+        CFBundleDisplayName: wifimap radar
+        UILaunchScreen: {}
+        # Allow plain-HTTP to the ESP32 on the local network.
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
+        # Bonjour discovery of the board + BLE usage strings.
+        NSLocalNetworkUsageDescription: Finds your wifimap sensor on the local network.
+        NSBonjourServices:
+          - _wifimap._tcp
+        NSBluetoothAlwaysUsageDescription: Scans for nearby Bluetooth devices to map them.
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.wifimap.radar
+        TARGETED_DEVICE_FAMILY: "1,2"

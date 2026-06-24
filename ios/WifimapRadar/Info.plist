@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Most keys are injected by project.yml; this file is a placeholder so a
+     hand-created Xcode project also has somewhere to put them. -->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>NSAppTransportSecurity</key>
+    <dict>
+        <key>NSAllowsLocalNetworking</key>
+        <true/>
+    </dict>
+    <key>NSLocalNetworkUsageDescription</key>
+    <string>Finds your wifimap sensor on the local network.</string>
+    <key>NSBonjourServices</key>
+    <array>
+        <string>_wifimap._tcp</string>
+    </array>
+    <key>NSBluetoothAlwaysUsageDescription</key>
+    <string>Scans for nearby Bluetooth devices to map them.</string>
+</dict>
+</plist>

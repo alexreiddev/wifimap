@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Base platform theme; the actual UI colors come from the Compose theme.
+         Using a plain android theme avoids a dependency on the Material XML lib. -->
+    <style name="Theme.WifimapRadar" parent="@android:style/Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/radar_bg</item>
+        <item name="android:statusBarColor">@color/radar_bg</item>
+        <item name="android:navigationBarColor">@color/radar_bg</item>
+    </style>
+</resources>
